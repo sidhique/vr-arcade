@@ -139,7 +139,7 @@ export const balloonPopGame = {
                 new THREE.SphereGeometry(0.58, 12, 12),
                 new THREE.MeshBasicMaterial({ visible: false })
             );
-            hitbox.position.set(pos[0], upY + 0.1, pos[2]);
+            hitbox.position.set(pos[0], hiddenY, pos[2]);
             hitbox.userData.holeIndex = idx;
             tableGroup.add(hitbox);
 
@@ -174,12 +174,12 @@ export const balloonPopGame = {
 
             const h = holes[activeIndex];
             h.ball.position.y = hiddenY;
+            h.hitbox.position.y = hiddenY;
             h.ball.scale.setScalar(1.0);
             h.ball.visible = true;
         }
 
         const raycaster = new THREE.Raycaster();
-        const hitboxes = holes.map((h) => h.hitbox);
         let score = 0;
         let whackAnimTimer = 0;
         const WHACK_DURATION = 0.25;
@@ -198,7 +198,10 @@ export const balloonPopGame = {
                 const dir = worldTarget.sub(camera.position).normalize();
                 raycaster.set(camera.position, dir);
 
-                const hits = raycaster.intersectObjects(hitboxes);
+                const activeHitboxes = (activePhase === 'active' && activeIndex !== -1)
+                    ? [holes[activeIndex].hitbox]
+                    : [];
+                const hits = raycaster.intersectObjects(activeHitboxes);
                 const targetedIndex = hits.length > 0 ? hits[0].object.userData.holeIndex : -1;
 
                 if (targetedIndex !== -1) {
@@ -215,6 +218,7 @@ export const balloonPopGame = {
                 // Check hit on the single active ball
                 if (justPressed && activePhase === 'active' && targetedIndex === activeIndex) {
                     const h = holes[activeIndex];
+                    h.hitbox.position.y = hiddenY;
                     activePhase = 'bursting';
                     phaseTimer = 0;
                     score += h.isGolden ? 20 : 10;
@@ -260,6 +264,7 @@ export const balloonPopGame = {
                     } else {
                         // 5.0 seconds elapsed — completely hidden, queue next single ball
                         h.ball.position.y = hiddenY;
+                        h.hitbox.position.y = hiddenY;
                         h.ball.visible = false;
                         activeIndex = -1;
                         activePhase = 'waiting';
@@ -267,6 +272,7 @@ export const balloonPopGame = {
                     }
 
                     if (activeIndex !== -1) {
+                        h.hitbox.position.y = h.ball.position.y + 0.14;
                         h.ball.scale.setScalar(activeIndex === targetedIndex ? 1.1 : 1.0);
                     }
                 } else if (activePhase === 'bursting') {
@@ -278,6 +284,7 @@ export const balloonPopGame = {
                     if (phaseTimer >= 0.12) {
                         h.ball.visible = false;
                         h.ball.position.y = hiddenY;
+                        h.hitbox.position.y = hiddenY;
                         h.ball.scale.setScalar(1.0);
                         activeIndex = -1;
                         activePhase = 'waiting';
