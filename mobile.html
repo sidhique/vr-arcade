@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>VR Player (Mobile)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    body:active {
+      cursor: grabbing;
+    }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 14, 28, 0.94);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 10;
+      text-align: center;
+      padding: 24px;
+      cursor: default;
+    }
+
+    .room-badge {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: 6px;
+      background: #1e293b;
+      padding: 12px 28px;
+      border-radius: 12px;
+      color: #38bdf8;
+      border: 1px solid #334155;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    #hud {
+      position: fixed;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      z-index: 5;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #mirrorCanvas {
+      display: none;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+  <div id="overlay">
+    <h2>VR Headset Mode</h2>
+    <p>Enter this Room Code on the Parent Portal:</p>
+    <div class="room-badge" id="roomCode">----</div>
+    <p id="statusText" style="color:#94a3b8;">Initializing connection...</p>
+    <button id="startBtn">Enter VR & Enable Sensors</button>
+    <p style="color:#64748b; font-size:0.85rem;">Desktop test: Drag mouse to look • Arrow keys to aim • Click or Space
+      to act • R to recenter</p>
+  </div>
+
+  <div id="hud">Room: <span id="hudRoom">----</span> | Look: <span id="lookMode">Mouse Drag</span> | Controller: <span
+      id="padStatus">None</span></div>
+  <canvas id="mirrorCanvas" width="640" height="360"></canvas>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
+    import { GAMES, unlockAudio } from './games/index.js';
+
+    const statusEl = document.getElementById('statusText');
+    const lookModeEl = document.getElementById('lookMode');
+
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    document.getElementById('roomCode').textContent = code;
+    document.getElementById('hudRoom').textContent = code;
+
+    // 1. Setup Three.js Scene + Stereoscopic Renderer
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 120);
+    scene.add(camera);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const stereoEffect = new StereoEffect(renderer);
+    stereoEffect.setSize(window.innerWidth, window.innerHeight);
+
+    const mirrorCanvas = document.getElementById('mirrorCanvas');
+    const mirrorRenderer = new THREE.WebGLRenderer({ canvas: mirrorCanvas, antialias: false });
+    mirrorRenderer.setSize(640, 360);
+
+    // 2. Camera Rig & Game State
+    let basePitch = 0;
+    let mouseYaw = 0;
+    let mousePitch = 0;
+
+    function applyCameraSetup(gameDef) {
+      const setup = gameDef?.cameraSetup || { position: [0, 0, 0], defaultPitch: 0 };
+      camera.position.set(...setup.position);
+      basePitch = setup.defaultPitch || 0;
+      mouseYaw = 0;
+      mousePitch = basePitch;
+    }
+
+    const sessionState = { paused: false, speedMultiplier: 1.0, activeGameKey: 'whackAMole' };
+    applyCameraSetup(GAMES.whackAMole);
+    let activeGame = GAMES.whackAMole.init(scene, camera);
+
+    function loadGame(key) {
+      if (!GAMES[key]) return;
+      if (activeGame) activeGame.dispose();
+      sessionState.activeGameKey = key;
+      applyCameraSetup(GAMES[key]);
+      activeGame = GAMES[key].init(scene, camera);
+    }
+
+    // 3. PeerJS Setup
+    let hostConn = null;
+    try {
+      const peer = new Peer(`vr-kids-${code}`, {
+        host: window.location.hostname,
+        port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
+        path: '/peerjs/myapp',
+        secure: window.location.protocol === 'https:'
+      });
+
+      peer.on('open', () => {
+        statusEl.textContent = 'Ready! Enter code on Parent Portal, then tap Enter VR.';
+        statusEl.style.color = '#34d399';
+      });
+
+      peer.on('error', (err) => {
+        statusEl.textContent = `Connection warning: ${err.type}. You can still test VR locally.`;
+        statusEl.style.color = '#fbbf24';
+      });
+
+      peer.on('connection', (conn) => {
+        hostConn = conn;
+        statusEl.textContent = 'Parent Portal Connected!';
+
+        const stream = mirrorCanvas.captureStream(24);
+        peer.call(conn.peer, stream);
+
+        conn.on('data', (msg) => {
+          if (msg.type === 'LOAD_GAME') loadGame(msg.gameKey);
+          if (msg.type === 'TOGGLE_PAUSE') sessionState.paused = !sessionState.paused;
+          if (msg.type === 'SET_SPEED') sessionState.speedMultiplier = msg.value;
+          if (msg.type === 'RECENTER') recenterView();
+        });
+      });
+    } catch (err) {
+      statusEl.textContent = `PeerJS error: ${err.message}`;
+    }
+
+    // 4. Gyroscope + Desktop Mouse-Drag Head-Tracking + Mouse-Click Action
+    let gyroEnabled = false;
+    let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 };
+    let screenOrientation = 0;
+    let latestAlpha = 0;
+    let yawOffset = 0;
+
+    let isDragging = false;
+    let prevMouseX = 0;
+    let prevMouseY = 0;
+    let dragDistance = 0;
+    let mouseClicked = false;
+    const mouseEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+    window.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#overlay')) return;
+      if (e.button !== 0) return;
+      isDragging = true;
+      prevMouseX = e.clientX;
+      prevMouseY = e.clientY;
+      dragDistance = 0;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevMouseX;
+      const dy = e.clientY - prevMouseY;
+      prevMouseX = e.clientX;
+      prevMouseY = e.clientY;
+
+      dragDistance += Math.hypot(dx, dy);
+
+      if (!gyroEnabled) {
+        const sensitivity = 0.004;
+        mouseYaw -= dx * sensitivity;
+        mousePitch = THREE.MathUtils.clamp(mousePitch - dy * sensitivity, -1.35, 1.35);
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (dragDistance < 6 && !e.target.closest('#overlay')) {
+        unlockAudio();
+        mouseClicked = true;
+      }
+    });
+
+    function recenterView() {
+      yawOffset = latestAlpha;
+      mouseYaw = 0;
+      mousePitch = basePitch;
+    }
+
+    const zee = new THREE.Vector3(0, 0, 1);
+    const euler = new THREE.Euler();
+    const q0 = new THREE.Quaternion();
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+
+    function updateCameraOrientation() {
+      if (gyroEnabled) {
+        const alpha = THREE.MathUtils.degToRad(deviceOrientation.alpha || 0) - yawOffset;
+        const beta = THREE.MathUtils.degToRad(deviceOrientation.beta || 0);
+        const gamma = THREE.MathUtils.degToRad(deviceOrientation.gamma || 0);
+        const orient = THREE.MathUtils.degToRad(screenOrientation || 0);
+
+        euler.set(beta, alpha, -gamma, 'YXZ');
+        camera.quaternion.setFromEuler(euler);
+        camera.quaternion.multiply(q1);
+        camera.quaternion.multiply(q0.setFromAxisAngle(zee, -orient));
+      } else {
+        mouseEuler.set(mousePitch, mouseYaw, 0, 'YXZ');
+        camera.quaternion.setFromEuler(mouseEuler);
+      }
+    }
+
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      unlockAudio();
+
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try { await DeviceOrientationEvent.requestPermission(); } catch (e) { }
+      }
+
+      window.addEventListener('deviceorientation', (e) => {
+        const hasRealSensorData =
+          e.alpha !== null &&
+          e.beta !== null &&
+          (Math.abs(e.alpha) > 0.01 || Math.abs(e.beta) > 0.01 || Math.abs(e.gamma) > 0.01);
+
+        if (hasRealSensorData) {
+          gyroEnabled = true;
+          lookModeEl.textContent = 'Gyroscope';
+          deviceOrientation = e;
+          latestAlpha = THREE.MathUtils.degToRad(e.alpha);
+        }
+      });
+
+      window.addEventListener('orientationchange', () => {
+        screenOrientation = window.orientation || 0;
+      });
+      screenOrientation = window.orientation || 0;
+
+      if ('wakeLock' in navigator) {
+        try { await navigator.wakeLock.request('screen'); } catch (e) { }
+      }
+      if (document.documentElement.requestFullscreen) {
+        try { await document.documentElement.requestFullscreen(); } catch (e) { }
+      }
+
+      document.getElementById('overlay').style.display = 'none';
+    });
+
+    // 5. Bluetooth Gamepad + Keyboard + Mouse Click Input Polling
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (e.code === 'KeyR') recenterView();
+    });
+    window.addEventListener('keyup', (e) => (keys[e.code] = false));
+
+    function getControllerInput() {
+      let x = (keys['ArrowRight'] ? 1 : 0) - (keys['ArrowLeft'] ? 1 : 0);
+      let y = (keys['ArrowUp'] ? 1 : 0) - (keys['ArrowDown'] ? 1 : 0);
+      let actionPressed = !!keys['Space'] || mouseClicked;
+      mouseClicked = false;
+
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const pad = pads[0];
+      if (pad) {
+        document.getElementById('padStatus').textContent = pad.id.slice(0, 16);
+        if (Math.abs(pad.axes[0]) > 0.15) x = pad.axes[0];
+        if (Math.abs(pad.axes[1]) > 0.15) y = -pad.axes[1];
+        if (pad.buttons.some((b) => b.pressed)) actionPressed = true;
+      }
+      return { x, y, actionPressed };
+    }
+
+    // 6. Main Render Loop
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      updateCameraOrientation();
+      const input = getControllerInput();
+      const telemetry = activeGame.update(dt, input, sessionState);
+
+      stereoEffect.render(scene, camera);
+
+      if (frameCount++ % 2 === 0) {
+        mirrorRenderer.render(scene, camera);
+      }
+
+      if (hostConn && hostConn.open && frameCount % 30 === 0) {
+        hostConn.send({
+          type: 'TELEMETRY',
+          score: telemetry?.score ?? 0,
+          paused: sessionState.paused,
+          gameKey: sessionState.activeGameKey
+        });
+      }
+    }
+    animate(lastTime);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      stereoEffect.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+
+</html>
