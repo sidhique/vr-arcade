@@ -1,26 +1,36 @@
 import * as THREE from 'three';
-import { playSound, buildPlaygroundLandscape } from './shared.js';
+import { playSound, buildPlaygroundLandscape, createFloatingScoreboard } from './shared.js';
 
 export const balloonPopGame = {
     name: 'Ball Pop Booth (Playground)',
-    cameraSetup: { position: [0, 2.65, 0], defaultPitch: -0.58 },
+    cameraSetup: { position: [0, 2.65, 0], defaultPitch: -0.42 },
     init(scene, camera) {
         const env = buildPlaygroundLandscape(scene);
         const group = new THREE.Group();
         scene.add(group);
 
+        // 3D Floating Carnival Scoreboard with In-Game Pause Control
+        const scoreboard = createFloatingScoreboard({
+            title: 'BALL POP BOOTH',
+            theme: 'carnival',
+            position: [0, 3.25, -6.1],
+            rotation: [0.18, 0, 0],
+            scale: 0.95
+        });
+        group.add(scoreboard.group);
+
         const tableGroup = new THREE.Group();
-        tableGroup.position.set(0, 0, -3.55);
+        tableGroup.position.set(0, 0, -4.6);
         group.add(tableGroup);
 
-        const BOX_W = 4.4;
-        const BOX_D = 4.2;
+        const BOX_W = 3.5;
+        const BOX_D = 3.35;
         const BOX_H = 0.52;
         const TOP_THICKNESS = 0.26;
-        const HOLE_RADIUS = 0.52;
+        const HOLE_RADIUS = 0.44;
 
-        const cols = [-1.32, 0.0, 1.32];
-        const rows = [1.26, 0.0, -1.26];
+        const cols = [-1.02, 0.0, 1.02];
+        const rows = [0.98, 0.0, -0.98];
 
         const woodMat = new THREE.MeshStandardMaterial({ color: 0xc87d32, roughness: 0.75 });
         const baseWalls = new THREE.Mesh(new THREE.BoxGeometry(BOX_W, BOX_H, BOX_D), woodMat);
@@ -71,20 +81,50 @@ export const balloonPopGame = {
         coralTop.position.y = BOX_H;
         tableGroup.add(coralTop);
 
-        // Crosshair always rendered on top
+        // High-contrast VR reticle: rendered on top of all 3D geometry and panels
         const cursor = new THREE.Group();
-        cursor.renderOrder = 999;
+        cursor.renderOrder = 9999;
+
+        const shadowRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.075, 0.135, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.65,
+                depthTest: false,
+                depthWrite: false
+            })
+        );
+        shadowRing.renderOrder = 9998;
+        cursor.add(shadowRing);
+
         const outerRing = new THREE.Mesh(
             new THREE.RingGeometry(0.085, 0.125, 32),
             new THREE.MeshBasicMaterial({
                 color: 0x00ff88,
                 side: THREE.DoubleSide,
+                transparent: true,
                 depthTest: false,
                 depthWrite: false
             })
         );
-        outerRing.renderOrder = 999;
+        outerRing.renderOrder = 9999;
         cursor.add(outerRing);
+
+        const centerDot = new THREE.Mesh(
+            new THREE.CircleGeometry(0.018, 16),
+            new THREE.MeshBasicMaterial({
+                color: 0x00ff88,
+                side: THREE.DoubleSide,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false
+            })
+        );
+        centerDot.renderOrder = 9999;
+        cursor.add(centerDot);
+
         cursor.position.set(0, 0, -3.5);
         camera.add(cursor);
 
@@ -161,6 +201,7 @@ export const balloonPopGame = {
         let lastIndex = -1;
         let activePhase = 'waiting'; // 'waiting' | 'active' | 'bursting'
         let phaseTimer = 0.6; // Short initial delay before first ball emerges
+        let missSoundPlayed = false;
 
         function spawnNextBall() {
             let nextIdx = Math.floor(Math.random() * holes.length);
@@ -171,6 +212,7 @@ export const balloonPopGame = {
             lastIndex = nextIdx;
             activePhase = 'active';
             phaseTimer = 0;
+            missSoundPlayed = false;
 
             const h = holes[activeIndex];
             h.ball.position.y = hiddenY;
@@ -184,11 +226,11 @@ export const balloonPopGame = {
         let whackAnimTimer = 0;
         const WHACK_DURATION = 0.25;
         let prevAction = false;
+        let currentScale = 0.68;
 
         return {
             update(dt, input, state) {
                 env.update(dt);
-                if (state.paused) return { score };
 
                 cursor.position.x = THREE.MathUtils.clamp(cursor.position.x + input.x * dt * 3.4, -2.4, 2.4);
                 cursor.position.y = THREE.MathUtils.clamp(cursor.position.y + input.y * dt * 2.8, -1.7, 1.7);
@@ -198,35 +240,46 @@ export const balloonPopGame = {
                 const dir = worldTarget.sub(camera.position).normalize();
                 raycaster.set(camera.position, dir);
 
+                const justPressed = input.actionPressed && !prevAction;
+                prevAction = input.actionPressed;
+
+                const sbResult = scoreboard.update(score, state, raycaster, justPressed);
+
                 const activeHitboxes = (activePhase === 'active' && activeIndex !== -1)
                     ? [holes[activeIndex].hitbox]
                     : [];
                 const hits = raycaster.intersectObjects(activeHitboxes);
                 const targetedIndex = hits.length > 0 ? hits[0].object.userData.holeIndex : -1;
 
-                if (targetedIndex !== -1) {
-                    outerRing.material.color.setHex(0xffd700);
-                    cursor.scale.setScalar(1.25);
-                } else {
-                    outerRing.material.color.setHex(0x00ff88);
-                    cursor.scale.setScalar(1.0);
+                const isHoverTarget = sbResult.isHoveringPause || (targetedIndex !== -1 && !state.paused);
+                const reticleColor = isHoverTarget ? 0xffd700 : 0x00ff88;
+                outerRing.material.color.setHex(reticleColor);
+                centerDot.material.color.setHex(reticleColor);
+
+                const targetScale = isHoverTarget ? 1.22 : 0.68;
+                currentScale = THREE.MathUtils.lerp(currentScale, targetScale, Math.min(dt * 16, 1.0));
+                cursor.scale.setScalar(currentScale);
+
+                if (state.paused) {
+                    return { score };
                 }
 
-                const justPressed = input.actionPressed && !prevAction;
-                prevAction = input.actionPressed;
-
                 // Check hit on the single active ball
-                if (justPressed && activePhase === 'active' && targetedIndex === activeIndex) {
-                    const h = holes[activeIndex];
-                    h.hitbox.position.y = hiddenY;
-                    activePhase = 'bursting';
-                    phaseTimer = 0;
-                    score += h.isGolden ? 20 : 10;
-                    playSound('burst');
+                if (justPressed && !sbResult.isHoveringPause) {
+                    if (activePhase === 'active' && targetedIndex === activeIndex) {
+                        const h = holes[activeIndex];
+                        h.hitbox.position.y = hiddenY;
+                        activePhase = 'bursting';
+                        phaseTimer = 0;
+                        score += h.isGolden ? 20 : 10;
+                        playSound('burst');
 
-                    malletPivot.position.set(h.localPos[0] + 0.22, upY + 0.15, h.localPos[2] + 0.75);
-                    malletPivot.visible = true;
-                    whackAnimTimer = WHACK_DURATION;
+                        malletPivot.position.set(h.localPos[0] + 0.22, upY + 0.15, h.localPos[2] + 0.75);
+                        malletPivot.visible = true;
+                        whackAnimTimer = WHACK_DURATION;
+                    } else {
+                        playSound('whoosh');
+                    }
                 }
 
                 if (whackAnimTimer > 0) {
@@ -258,11 +311,19 @@ export const balloonPopGame = {
                         // Held fully visible for 4.0s
                         h.ball.position.y = upY;
                     } else if (phaseTimer < TOTAL_LIFETIME) {
-                        // Smooth descent over final 0.5s
+                        // Smooth descent over final 0.5s — balloon is sinking away unpopped!
+                        if (!missSoundPlayed) {
+                            missSoundPlayed = true;
+                            playSound('miss');
+                        }
                         const t = (phaseTimer - (RISE_DURATION + HOLD_DURATION)) / FALL_DURATION;
                         h.ball.position.y = THREE.MathUtils.lerp(upY, hiddenY, t);
                     } else {
                         // 5.0 seconds elapsed — completely hidden, queue next single ball
+                        if (!missSoundPlayed) {
+                            missSoundPlayed = true;
+                            playSound('miss');
+                        }
                         h.ball.position.y = hiddenY;
                         h.hitbox.position.y = hiddenY;
                         h.ball.visible = false;
@@ -296,6 +357,7 @@ export const balloonPopGame = {
             },
             dispose() {
                 env.dispose();
+                scoreboard.dispose();
                 camera.remove(cursor);
                 scene.remove(group);
                 deckGeo.dispose();

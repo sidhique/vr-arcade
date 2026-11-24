@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { playSound, buildSpaceLandscape } from './shared.js';
+import { playSound, buildSpaceLandscape, createFloatingScoreboard } from './shared.js';
 
 export const starCatcherGame = {
     name: 'Star Catcher (Space)',
@@ -9,10 +9,59 @@ export const starCatcherGame = {
         const group = new THREE.Group();
         scene.add(group);
 
-        const cursor = new THREE.Mesh(
-            new THREE.RingGeometry(0.08, 0.12, 32),
-            new THREE.MeshBasicMaterial({ color: 0x00ffcc, side: THREE.DoubleSide })
+        const scoreboard = createFloatingScoreboard({
+            title: 'STAR CATCHER',
+            theme: 'space',
+            position: [0, 2.3, -4.5],
+            rotation: [0.25, 0, 0],
+            scale: 0.95
+        });
+        group.add(scoreboard.group);
+
+        // High-contrast VR reticle: rendered on top of all 3D geometry and panels
+        const cursor = new THREE.Group();
+        cursor.renderOrder = 9999;
+
+        const shadowRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.07, 0.13, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.65,
+                depthTest: false,
+                depthWrite: false
+            })
         );
+        shadowRing.renderOrder = 9998;
+        cursor.add(shadowRing);
+
+        const outerRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.08, 0.12, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0x00ffcc,
+                side: THREE.DoubleSide,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false
+            })
+        );
+        outerRing.renderOrder = 9999;
+        cursor.add(outerRing);
+
+        const centerDot = new THREE.Mesh(
+            new THREE.CircleGeometry(0.016, 16),
+            new THREE.MeshBasicMaterial({
+                color: 0x00ffcc,
+                side: THREE.DoubleSide,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false
+            })
+        );
+        centerDot.renderOrder = 9999;
+        cursor.add(centerDot);
+
         cursor.position.set(0, 0, -4);
         camera.add(cursor);
 
@@ -44,12 +93,12 @@ export const starCatcherGame = {
         const raycaster = new THREE.Raycaster();
         let score = 0;
         let cooldown = 0;
+        let prevAction = false;
+        let currentScale = 0.68;
 
         return {
             update(dt, input, state) {
                 env.update(dt);
-                if (state.paused) return { score };
-                cooldown = Math.max(0, cooldown - dt);
 
                 cursor.position.x = THREE.MathUtils.clamp(cursor.position.x + input.x * dt * 3, -2.5, 2.5);
                 cursor.position.y = THREE.MathUtils.clamp(cursor.position.y + input.y * dt * 3, -1.8, 1.8);
@@ -59,7 +108,27 @@ export const starCatcherGame = {
                 const dir = worldTarget.sub(camera.position).normalize();
                 raycaster.set(camera.position, dir);
 
-                const hits = raycaster.intersectObjects(stars);
+                const justPressed = input.actionPressed && !prevAction;
+                prevAction = input.actionPressed;
+
+                const sbResult = scoreboard.update(score, state, raycaster, justPressed);
+
+                const isHoverTarget = sbResult.isHoveringPause || hits.length > 0;
+                const reticleColor = isHoverTarget ? 0xffd700 : 0x00ffcc;
+                outerRing.material.color.setHex(reticleColor);
+                centerDot.material.color.setHex(reticleColor);
+
+                const targetScale = isHoverTarget ? 1.22 : 0.68;
+                currentScale = THREE.MathUtils.lerp(currentScale, targetScale, Math.min(dt * 16, 1.0));
+                cursor.scale.setScalar(currentScale);
+
+                if (state.paused) {
+                    return { score };
+                }
+
+                cooldown = Math.max(0, cooldown - dt);
+
+                const hits = !sbResult.isHoveringPause ? raycaster.intersectObjects(stars) : [];
                 stars.forEach((s) => {
                     s.rotation.y += dt * 1.5;
                     s.rotation.x += dt * 0.8;
@@ -67,7 +136,7 @@ export const starCatcherGame = {
                     s.scale.setScalar(1);
                 });
 
-                if (hits.length > 0) {
+                if (hits.length > 0 && !sbResult.isHoveringPause) {
                     const target = hits[0].object;
                     target.scale.setScalar(1.35);
                     if (input.actionPressed || cooldown === 0) {
@@ -77,10 +146,12 @@ export const starCatcherGame = {
                         cooldown = 0.35;
                     }
                 }
+
                 return { score };
             },
             dispose() {
                 env.dispose();
+                scoreboard.dispose();
                 camera.remove(cursor);
                 scene.remove(group);
                 geo.dispose();

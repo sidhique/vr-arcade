@@ -67,6 +67,60 @@ export function playSound(type = 'chime', baseFreq = 523.25) {
             gain.connect(sharedAudioCtx.destination);
             osc.start(now);
             osc.stop(now + 0.14);
+        } else if (type === 'miss') {
+            const osc = sharedAudioCtx.createOscillator();
+            const gain = sharedAudioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(650, now);
+            osc.frequency.exponentialRampToValueAtTime(180, now + 0.35);
+
+            gain.gain.setValueAtTime(0.01, now);
+            gain.gain.linearRampToValueAtTime(0.38, now + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+
+            osc.connect(gain);
+            gain.connect(sharedAudioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.36);
+
+            const sub = sharedAudioCtx.createOscillator();
+            const subGain = sharedAudioCtx.createGain();
+            sub.type = 'sine';
+            sub.frequency.setValueAtTime(325, now);
+            sub.frequency.exponentialRampToValueAtTime(90, now + 0.35);
+
+            subGain.gain.setValueAtTime(0.01, now);
+            subGain.gain.linearRampToValueAtTime(0.24, now + 0.04);
+            subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+
+            sub.connect(subGain);
+            subGain.connect(sharedAudioCtx.destination);
+            sub.start(now);
+            sub.stop(now + 0.36);
+        } else if (type === 'whoosh') {
+            const bufferSize = Math.floor(sharedAudioCtx.sampleRate * 0.12);
+            const buffer = sharedAudioCtx.createBuffer(1, bufferSize, sharedAudioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.sin((i / bufferSize) * Math.PI);
+            }
+
+            const noise = sharedAudioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = sharedAudioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(900, now);
+            filter.frequency.exponentialRampToValueAtTime(250, now + 0.12);
+
+            const gain = sharedAudioCtx.createGain();
+            gain.gain.setValueAtTime(0.28, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(sharedAudioCtx.destination);
+            noise.start(now);
         } else {
             const osc = sharedAudioCtx.createOscillator();
             const gain = sharedAudioCtx.createGain();
@@ -287,6 +341,452 @@ export function buildSpaceLandscape(scene) {
         dispose() {
             scene.fog = null;
             scene.remove(envGroup);
+        }
+    };
+}
+
+export function createFloatingScoreboard({
+    title = 'ARCADE',
+    theme = 'carnival',
+    position = [0, 3.2, -4.5],
+    rotation = [0.2, 0, 0],
+    scale = 1.0,
+    accentColor = null,
+    frameColor = null
+} = {}) {
+    const THEMES = {
+        carnival: {
+            frameColor: 0x8b4513,
+            bevelColor: 0xd4a373,
+            accentColor: 0xffb703,
+            bulbColor: 0xffd166,
+            bgGradient: ['#281008', '#120502'],
+            cardBg: 'rgba(255, 255, 255, 0.08)',
+            cardBorder: '#d4a373',
+            scoreColor: '#ffd166',
+            scoreGlow: '#fb8500',
+            titleColor: '#ffe8d6',
+            pauseBg: '#9e2a2b',
+            pauseBorder: '#ff4d6d'
+        },
+        space: {
+            frameColor: 0x0f172a,
+            bevelColor: 0x334155,
+            accentColor: 0x00f5d4,
+            bulbColor: 0x7b2cbf,
+            bgGradient: ['#030712', '#0b132b'],
+            cardBg: 'rgba(0, 245, 212, 0.08)',
+            cardBorder: '#00f5d4',
+            scoreColor: '#00f5d4',
+            scoreGlow: '#00bb9c',
+            titleColor: '#70e000',
+            pauseBg: '#3a0ca3',
+            pauseBorder: '#4cc9f0'
+        },
+        meadow: {
+            frameColor: 0x2d6a4f,
+            bevelColor: 0x52b788,
+            accentColor: 0xffd166,
+            bulbColor: 0x90e0ef,
+            bgGradient: ['#081c15', '#1b4332'],
+            cardBg: 'rgba(255, 255, 255, 0.08)',
+            cardBorder: '#74c69d',
+            scoreColor: '#ffe49e',
+            scoreGlow: '#f3c053',
+            titleColor: '#d8f3dc',
+            pauseBg: '#b7094c',
+            pauseBorder: '#ff758f'
+        }
+    };
+
+    const cfg = { ...(THEMES[theme] || THEMES.carnival) };
+    if (accentColor !== null) cfg.accentColor = accentColor;
+    if (frameColor !== null) cfg.frameColor = frameColor;
+
+    const group = new THREE.Group();
+    group.position.set(...position);
+    group.rotation.set(...rotation);
+    group.scale.setScalar(scale);
+
+    // 1. Arched Arcade Marquee Backplate Shape
+    const shape = new THREE.Shape();
+    const w = 2.4, h = 1.25, r = 0.22;
+    shape.moveTo(-w / 2 + r, -h / 2);
+    shape.lineTo(w / 2 - r, -h / 2);
+    shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+    shape.lineTo(w / 2, h / 2 - r * 1.5);
+    shape.quadraticCurveTo(w / 2, h / 2 - 0.05, w / 2 - 0.2, h / 2 - 0.02);
+    shape.quadraticCurveTo(0, h / 2 + 0.22, -w / 2 + 0.2, h / 2 - 0.02);
+    shape.quadraticCurveTo(-w / 2, h / 2 - 0.05, -w / 2, h / 2 - r * 1.5);
+    shape.lineTo(-w / 2, -h / 2 + r);
+    shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+
+    const frameGeo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.07,
+        bevelEnabled: true,
+        bevelThickness: 0.035,
+        bevelSize: 0.035,
+        bevelSegments: 3,
+        curveSegments: 28
+    });
+    frameGeo.translate(0, 0, -0.05);
+
+    const frameMat = new THREE.MeshStandardMaterial({
+        color: cfg.frameColor,
+        roughness: 0.45,
+        metalness: 0.25
+    });
+    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+    group.add(frameMesh);
+
+    // Decorative Marquee Bulbs along top arch
+    const bulbGeo = new THREE.SphereGeometry(0.045, 12, 10);
+    const bulbMat = new THREE.MeshStandardMaterial({
+        color: cfg.bulbColor,
+        emissive: cfg.bulbColor,
+        emissiveIntensity: 0.4,
+        roughness: 0.2,
+        metalness: 0.6
+    });
+
+    const numBulbs = 9;
+    for (let i = 0; i < numBulbs; i++) {
+        const t = (i / (numBulbs - 1)) * 2 - 1;
+        const bx = t * (w / 2 - 0.22);
+        const by = h / 2 + (1 - t * t) * 0.22 - 0.02;
+        const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+        bulb.position.set(bx, by, 0.06);
+        group.add(bulb);
+    }
+
+    // 2. High-Resolution Dynamic Canvas Texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const faceMat = new THREE.MeshStandardMaterial({
+        map: texture,
+        transparent: true,
+        roughness: 0.4,
+        metalness: 0.1,
+        emissive: 0xffffff,
+        emissiveMap: texture,
+        emissiveIntensity: 0.45
+    });
+    const faceGeo = new THREE.PlaneGeometry(2.18, 1.15);
+    const faceMesh = new THREE.Mesh(faceGeo, faceMat);
+    faceMesh.position.set(0, -0.01, 0.056);
+    group.add(faceMesh);
+
+    // 3. Interactive Pause Hitbox
+    const pauseHitbox = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.92, 0.65),
+        new THREE.MeshBasicMaterial({ visible: false })
+    );
+    pauseHitbox.position.set(0.51, -0.06, 0.08);
+    pauseHitbox.userData.isPauseButton = true;
+    group.add(pauseHitbox);
+
+    let lastScore = -1;
+    let lastPaused = null;
+    let lastHovered = false;
+    let lastSec = -1;
+    let lastRoom = null;
+    let lastTimeUp = null;
+
+    function formatTime(seconds) {
+        const s = Math.max(0, Math.floor(seconds || 0));
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function drawScoreboard(score, isPaused, isHovered, roomCode = '', timeRemaining = 900, timeUp = false) {
+        ctx.clearRect(0, 0, 1024, 512);
+
+        const radius = 32;
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(16, 16, 992, 480, radius);
+        } else {
+            ctx.rect(16, 16, 992, 480);
+        }
+        ctx.clip();
+
+        // Gradient Background
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, 512);
+        bgGrad.addColorStop(0, cfg.bgGradient[0]);
+        bgGrad.addColorStop(1, cfg.bgGradient[1]);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, 1024, 512);
+
+        // Pattern / Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 1;
+        for (let x = 32; x < 1024; x += 32) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, 512);
+            ctx.stroke();
+        }
+
+        // Inner glowing border
+        ctx.strokeStyle = cfg.cardBorder;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(20, 20, 984, 472);
+
+        // --- HEADER BAR ---
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(20, 20, 984, 76);
+
+        // Title
+        ctx.font = 'bold 30px "Segoe UI", system-ui, sans-serif';
+        ctx.fillStyle = cfg.titleColor;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = typeof cfg.accentColor === 'number' ? `#${cfg.accentColor.toString(16).padStart(6, '0')}` : cfg.accentColor;
+        ctx.shadowBlur = 8;
+        ctx.fillText(`★  ${title}`, 44, 58);
+        ctx.shadowBlur = 0;
+
+        // Room Code Badge in Center
+        if (roomCode) {
+            const roomBadgeX = 495, roomBadgeY = 38, roomBadgeW = 180, roomBadgeH = 40;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(roomBadgeX - roomBadgeW / 2, roomBadgeY, roomBadgeW, roomBadgeH, 20);
+            else ctx.rect(roomBadgeX - roomBadgeW / 2, roomBadgeY, roomBadgeW, roomBadgeH);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = 'bold 20px "Segoe UI", monospace';
+            ctx.fillStyle = '#38bdf8';
+            ctx.textAlign = 'center';
+            ctx.fillText(`🔑 ROOM ${roomCode}`, roomBadgeX, 58);
+        }
+
+        // Status Pill on Right
+        let statusText = '● LIVE SESSION';
+        let statusColor = '#34d399';
+        if (timeUp) {
+            statusText = '⌛ TIME\'S UP';
+            statusColor = '#f87171';
+        } else if (isPaused) {
+            statusText = '⏸ PAUSED';
+            statusColor = '#fbbf24';
+        }
+        ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = statusColor;
+        ctx.fillText(statusText, 970, 58);
+
+        // --- LEFT CARD: SCORE & 15-MIN TIMER ---
+        ctx.fillStyle = cfg.cardBg;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(46, 116, 440, 350, 24);
+        else ctx.rect(46, 116, 440, 350);
+        ctx.fill();
+        ctx.stroke();
+
+        // Score Section
+        ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'center';
+        ctx.fillText('🏆  PLAYER SCORE', 266, 155);
+
+        ctx.font = 'bold 98px "Segoe UI", system-ui, monospace';
+        ctx.fillStyle = cfg.scoreColor;
+        ctx.shadowColor = cfg.scoreGlow;
+        ctx.shadowBlur = 20;
+        ctx.fillText(score.toString(), 266, 248);
+        ctx.shadowBlur = 0;
+
+        // Divider
+        const scoreUnderline = ctx.createLinearGradient(120, 0, 412, 0);
+        scoreUnderline.addColorStop(0, 'transparent');
+        scoreUnderline.addColorStop(0.5, 'rgba(255, 255, 255, 0.25)');
+        scoreUnderline.addColorStop(1, 'transparent');
+        ctx.fillStyle = scoreUnderline;
+        ctx.fillRect(116, 280, 300, 2);
+
+        // Session Timer Section
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(76, 298, 380, 148, 16);
+        else ctx.rect(76, 298, 380, 148);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('⏱  SESSION TIMER (15 MIN)', 266, 332);
+
+        const timerStr = formatTime(timeRemaining);
+        ctx.font = 'bold 54px "Segoe UI", monospace';
+        if (timeRemaining <= 60 || timeUp) {
+            ctx.fillStyle = '#f87171';
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 16;
+        } else if (timeRemaining <= 180) {
+            ctx.fillStyle = '#fbbf24';
+            ctx.shadowColor = '#f59e0b';
+            ctx.shadowBlur = 12;
+        } else {
+            ctx.fillStyle = '#38bdf8';
+            ctx.shadowColor = '#0284c7';
+            ctx.shadowBlur = 10;
+        }
+        ctx.fillText(timerStr, 266, 396);
+        ctx.shadowBlur = 0;
+
+        ctx.font = '600 14px "Segoe UI", system-ui, sans-serif';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(timeUp ? 'PLAY SESSION FINISHED' : (isPaused ? 'TIMER PAUSED' : 'TIME REMAINING'), 266, 430);
+
+        // --- RIGHT CARD: PAUSE / RESUME BUTTON ---
+        const btnX = 526, btnY = 116, btnW = 452, btnH = 350, btnR = 24;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(btnX, btnY, btnW, btnH, btnR);
+        else ctx.rect(btnX, btnY, btnW, btnH);
+
+        if (timeUp) {
+            const timeUpGrad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
+            timeUpGrad.addColorStop(0, '#991b1b');
+            timeUpGrad.addColorStop(1, '#450a0a');
+            ctx.fillStyle = timeUpGrad;
+            ctx.fill();
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.font = 'bold 64px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('⌛  TIME\'S UP!', btnX + btnW / 2, btnY + 165);
+
+            ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#fecaca';
+            ctx.fillText('15-Minute Play Session Ended', btnX + btnW / 2, btnY + 245);
+        } else if (isPaused) {
+            const resumeGrad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
+            resumeGrad.addColorStop(0, isHovered ? '#10b981' : '#059669');
+            resumeGrad.addColorStop(1, isHovered ? '#059669' : '#047857');
+            ctx.fillStyle = resumeGrad;
+            ctx.fill();
+
+            ctx.strokeStyle = isHovered ? '#6ee7b7' : '#34d399';
+            ctx.lineWidth = isHovered ? 8 : 4;
+            if (isHovered) {
+                ctx.shadowColor = '#34d399';
+                ctx.shadowBlur = 30;
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.font = 'bold 72px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('▶  RESUME', btnX + btnW / 2, btnY + 165);
+
+            ctx.font = 'bold 24px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ecfdf5';
+            ctx.fillText(isHovered ? '👉 CLICK TO RESUME 👈' : 'Aim & Press to Resume', btnX + btnW / 2, btnY + 248);
+        } else {
+            const pauseGrad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
+            pauseGrad.addColorStop(0, isHovered ? '#e11d48' : cfg.pauseBg);
+            pauseGrad.addColorStop(1, isHovered ? '#be123c' : '#4c0519');
+            ctx.fillStyle = pauseGrad;
+            ctx.fill();
+
+            ctx.strokeStyle = isHovered ? '#fda4af' : cfg.pauseBorder;
+            ctx.lineWidth = isHovered ? 8 : 4;
+            if (isHovered) {
+                ctx.shadowColor = '#f43f5e';
+                ctx.shadowBlur = 28;
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.font = 'bold 72px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('⏸  PAUSE', btnX + btnW / 2, btnY + 165);
+
+            ctx.font = 'bold 24px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ffe4e6';
+            ctx.fillText(isHovered ? '👉 CLICK TO PAUSE 👈' : 'Aim & Press to Pause', btnX + btnW / 2, btnY + 248);
+        }
+
+        ctx.restore();
+        texture.needsUpdate = true;
+    }
+
+    drawScoreboard(0, false, false, '', 900, false);
+
+    return {
+        group,
+        pauseHitbox,
+        update(score, sessionState, raycaster, justPressed) {
+            const isPaused = !!sessionState?.paused;
+            const roomCode = sessionState?.roomCode || '';
+            const timeRemaining = sessionState?.timeRemaining ?? 900;
+            const timeUp = !!sessionState?.timeUp;
+            const currentSec = Math.floor(timeRemaining);
+            let isHovered = false;
+
+            if (raycaster) {
+                const hits = raycaster.intersectObject(pauseHitbox);
+                if (hits.length > 0) {
+                    isHovered = true;
+                    if (justPressed && !timeUp) {
+                        sessionState.paused = !sessionState.paused;
+                        playSound('pop');
+                    }
+                }
+            }
+
+            if (
+                score !== lastScore ||
+                isPaused !== lastPaused ||
+                isHovered !== lastHovered ||
+                currentSec !== lastSec ||
+                roomCode !== lastRoom ||
+                timeUp !== lastTimeUp
+            ) {
+                lastScore = score;
+                lastPaused = isPaused;
+                lastHovered = isHovered;
+                lastSec = currentSec;
+                lastRoom = roomCode;
+                lastTimeUp = timeUp;
+                drawScoreboard(score, isPaused, isHovered, roomCode, timeRemaining, timeUp);
+            }
+
+            return { isHoveringPause: isHovered };
+        },
+        dispose() {
+            texture.dispose();
+            faceGeo.dispose();
+            faceMat.dispose();
+            frameGeo.dispose();
+            frameMat.dispose();
+            bulbGeo.dispose();
+            bulbMat.dispose();
+            pauseHitbox.geometry.dispose();
+            pauseHitbox.material.dispose();
         }
     };
 }

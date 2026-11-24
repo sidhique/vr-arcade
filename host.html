@@ -98,6 +98,7 @@
       <strong>Live Headset Mirror</strong>
       <div class="stats">
         <span>Score: <span id="scoreVal">0</span></span>
+        <span>Time: <span id="timeVal">15:00</span></span>
         <span id="stateVal">Playing</span>
       </div>
     </div>
@@ -155,6 +156,11 @@
         if (msg.type === 'TELEMETRY') {
           document.getElementById('scoreVal').textContent = msg.score;
           document.getElementById('stateVal').textContent = msg.paused ? 'Paused' : 'Playing';
+          if (msg.timeRemaining !== undefined) {
+            const m = Math.floor(msg.timeRemaining / 60);
+            const s = msg.timeRemaining % 60;
+            document.getElementById('timeVal').textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+          }
         }
       });
     });

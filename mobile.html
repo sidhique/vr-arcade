@@ -63,17 +63,7 @@
     }
 
     #hud {
-      position: fixed;
-      top: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      z-index: 5;
-      pointer-events: none;
-      white-space: nowrap;
+      display: none;
     }
 
     #mirrorCanvas {
@@ -148,7 +138,15 @@
       mousePitch = basePitch;
     }
 
-    const sessionState = { paused: false, speedMultiplier: 1.0, activeGameKey: 'whackAMole' };
+    const sessionState = {
+      paused: false,
+      speedMultiplier: 1.0,
+      activeGameKey: 'whackAMole',
+      roomCode: code,
+      timeRemaining: 15 * 60,
+      sessionStarted: false,
+      timeUp: false
+    };
     applyCameraSetup(GAMES.whackAMole);
     let activeGame = GAMES.whackAMole.init(scene, camera);
 
@@ -307,6 +305,7 @@
         try { await document.documentElement.requestFullscreen(); } catch (e) { }
       }
 
+      sessionState.sessionStarted = true;
       document.getElementById('overlay').style.display = 'none';
     });
 
@@ -346,6 +345,16 @@
 
       updateCameraOrientation();
       const input = getControllerInput();
+
+      if (sessionState.sessionStarted && !sessionState.paused && sessionState.timeRemaining > 0) {
+        sessionState.timeRemaining = Math.max(0, sessionState.timeRemaining - dt);
+        if (sessionState.timeRemaining === 0 && !sessionState.timeUp) {
+          sessionState.timeUp = true;
+          sessionState.paused = true;
+          playSound('chime');
+        }
+      }
+
       const telemetry = activeGame.update(dt, input, sessionState);
 
       stereoEffect.render(scene, camera);
@@ -359,7 +368,8 @@
           type: 'TELEMETRY',
           score: telemetry?.score ?? 0,
           paused: sessionState.paused,
-          gameKey: sessionState.activeGameKey
+          gameKey: sessionState.activeGameKey,
+          timeRemaining: Math.ceil(sessionState.timeRemaining)
         });
       }
     }
