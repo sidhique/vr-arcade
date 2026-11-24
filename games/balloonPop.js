@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { playSound, buildPlaygroundLandscape, createFloatingScoreboard } from './shared.js';
+import { playSound, buildPlaygroundLandscape, createVisorHUD } from './shared.js';
 
 export const balloonPopGame = {
     name: 'Ball Pop Booth (Playground)',
@@ -9,44 +9,46 @@ export const balloonPopGame = {
         const group = new THREE.Group();
         scene.add(group);
 
-        // 3D Floating Carnival Scoreboard with In-Game Pause Control
-        const scoreboard = createFloatingScoreboard({
-            title: 'BALL POP BOOTH',
-            theme: 'carnival',
-            position: [0, 3.25, -6.1],
-            rotation: [0.18, 0, 0],
-            scale: 0.95
+        // Sleek Curved Visor HUD mounted at the top of camera view (matching inspiration)
+        const scoreboard = createVisorHUD({
+            camera,
+            title: 'BALL POP'
         });
-        group.add(scoreboard.group);
 
         const tableGroup = new THREE.Group();
         tableGroup.position.set(0, 0, -4.6);
         group.add(tableGroup);
 
-        const BOX_W = 3.5;
-        const BOX_D = 3.35;
+        const BOX_W = 3.45;
+        const BOX_D = 3.3;
         const BOX_H = 0.52;
-        const TOP_THICKNESS = 0.26;
+        const TOP_THICKNESS = 0.22;
         const HOLE_RADIUS = 0.44;
 
         const cols = [-1.02, 0.0, 1.02];
         const rows = [0.98, 0.0, -0.98];
 
-        const woodMat = new THREE.MeshStandardMaterial({ color: 0xc87d32, roughness: 0.75 });
-        const baseWalls = new THREE.Mesh(new THREE.BoxGeometry(BOX_W, BOX_H, BOX_D), woodMat);
-        baseWalls.position.y = BOX_H / 2;
-        tableGroup.add(baseWalls);
+        // 1. Soft Ground Contact Shadow beneath table
+        const shadowMat = new THREE.MeshBasicMaterial({
+            color: 0x180b06,
+            transparent: true,
+            opacity: 0.52,
+            depthWrite: false
+        });
+        const tableShadow = new THREE.Mesh(new THREE.PlaneGeometry(4.3, 4.1), shadowMat);
+        tableShadow.rotation.x = -Math.PI / 2;
+        tableShadow.position.y = 0.015;
+        tableGroup.add(tableShadow);
 
-        const dirtFloor = new THREE.Mesh(
-            new THREE.PlaneGeometry(BOX_W - 0.25, BOX_D - 0.25),
-            new THREE.MeshStandardMaterial({ color: 0x7c5c32, roughness: 1.0 })
-        );
-        dirtFloor.rotation.x = -Math.PI / 2;
-        dirtFloor.position.y = BOX_H + 0.01;
-        tableGroup.add(dirtFloor);
+        // 2. Beveled Console Plinth Base
+        const plinthMat = new THREE.MeshStandardMaterial({ color: 0x9e442c, roughness: 0.75 });
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.42, 3.2), plinthMat);
+        plinth.position.y = 0.21;
+        tableGroup.add(plinth);
 
-        const deckW = BOX_W - 0.24;
-        const deckD = BOX_D - 0.24;
+        // 3. Molded Salmon Playfield Deck with 9 Holes
+        const deckW = BOX_W - 0.16;
+        const deckD = BOX_D - 0.16;
         const deckShape = new THREE.Shape();
         deckShape.moveTo(-deckW / 2, -deckD / 2);
         deckShape.lineTo(deckW / 2, -deckD / 2);
@@ -67,19 +69,83 @@ export const balloonPopGame = {
         const deckGeo = new THREE.ExtrudeGeometry(deckShape, {
             depth: TOP_THICKNESS,
             bevelEnabled: true,
-            bevelThickness: 0.03,
-            bevelSize: 0.03,
-            bevelSegments: 2,
-            curveSegments: 28
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 3,
+            curveSegments: 32
         });
         deckGeo.rotateX(-Math.PI / 2);
 
         const coralTop = new THREE.Mesh(
             deckGeo,
-            new THREE.MeshStandardMaterial({ color: 0xe85d56, roughness: 0.55 })
+            new THREE.MeshStandardMaterial({ color: 0xde5753, roughness: 0.45, metalness: 0.08 })
         );
         coralTop.position.y = BOX_H;
         tableGroup.add(coralTop);
+
+        // 4. Raised Perimeter Bezel Frame (Framing the molded tray)
+        const frameRimMat = new THREE.MeshStandardMaterial({ color: 0xc84945, roughness: 0.45, metalness: 0.08 });
+        const railH = 0.055, railThickness = 0.11;
+        const frontRail = new THREE.Mesh(new THREE.BoxGeometry(deckW + 0.08, railH, railThickness), frameRimMat);
+        frontRail.position.set(0, BOX_H + TOP_THICKNESS + railH / 2, deckD / 2 - railThickness / 2);
+
+        const backRail = new THREE.Mesh(new THREE.BoxGeometry(deckW + 0.08, railH, railThickness), frameRimMat);
+        backRail.position.set(0, BOX_H + TOP_THICKNESS + railH / 2, -deckD / 2 + railThickness / 2);
+
+        const leftRail = new THREE.Mesh(new THREE.BoxGeometry(railThickness, railH, deckD - railThickness * 2), frameRimMat);
+        leftRail.position.set(-deckW / 2 + railThickness / 2, BOX_H + TOP_THICKNESS + railH / 2, 0);
+
+        const rightRail = new THREE.Mesh(new THREE.BoxGeometry(railThickness, railH, deckD - railThickness * 2), frameRimMat);
+        rightRail.position.set(deckW / 2 - railThickness / 2, BOX_H + TOP_THICKNESS + railH / 2, 0);
+
+        tableGroup.add(frontRail, backRail, leftRail, rightRail);
+
+        // 5. Tactile Dished Funnel Collars & Dark Cavity Wells for each hole
+        const surfaceY = BOX_H + TOP_THICKNESS;
+        const hiddenY = BOX_H - 0.35;
+        const upY = surfaceY + 0.12;
+
+        // Smooth concave lathe collar curve dipping into the hole
+        const collarPoints = [];
+        const COLLAR_TOP_R = HOLE_RADIUS + 0.075;
+        const COLLAR_BOT_R = HOLE_RADIUS - 0.035;
+        const COLLAR_DEPTH = 0.11;
+        for (let p = 0; p <= 12; p++) {
+            const t = p / 12;
+            const r = THREE.MathUtils.lerp(COLLAR_TOP_R, COLLAR_BOT_R, Math.sin(t * Math.PI * 0.5));
+            const y = -t * COLLAR_DEPTH;
+            collarPoints.push(new THREE.Vector2(r, y));
+        }
+        const collarGeo = new THREE.LatheGeometry(collarPoints, 32);
+        const collarMat = new THREE.MeshStandardMaterial({
+            color: 0xc94945,
+            roughness: 0.5,
+            metalness: 0.05
+        });
+
+        // Dark cavity cylinder liner giving realistic hollow depth inside each hole
+        const wellGeo = new THREE.CylinderGeometry(COLLAR_BOT_R, COLLAR_BOT_R, 0.72, 24, 1, true);
+        const wellMat = new THREE.MeshStandardMaterial({
+            color: 0x110705,
+            roughness: 0.95,
+            side: THREE.BackSide
+        });
+        const wellBottomGeo = new THREE.CircleGeometry(COLLAR_BOT_R, 24);
+        const wellBottomMat = new THREE.MeshBasicMaterial({ color: 0x090403 });
+
+        holeLocalPositions.forEach(([hx, hy, hz]) => {
+            const collarMesh = new THREE.Mesh(collarGeo, collarMat);
+            collarMesh.position.set(hx, surfaceY, hz);
+
+            const wellMesh = new THREE.Mesh(wellGeo, wellMat);
+            wellMesh.position.set(hx, surfaceY - 0.36, hz);
+
+            const bottomMesh = new THREE.Mesh(wellBottomGeo, wellBottomMat);
+            bottomMesh.rotation.x = -Math.PI / 2;
+            bottomMesh.position.set(hx, hiddenY + 0.02, hz);
+
+            tableGroup.add(collarMesh, wellMesh, bottomMesh);
+        });
 
         // High-contrast VR reticle: rendered on top of all 3D geometry and panels
         const cursor = new THREE.Group();
@@ -150,11 +216,8 @@ export const balloonPopGame = {
 
         // Build 9 Pop-up Balls inside the 9 recessed holes
         const holes = [];
-        const surfaceY = BOX_H + TOP_THICKNESS;
         const BALL_RADIUS = 0.4;
-        const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 28, 24);
-        const hiddenY = BOX_H - 0.35;
-        const upY = surfaceY + 0.12;
+        const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 32, 28);
 
         const ballColors = [
             0xff4d6d, 0xffbe0b, 0x3a86ff,
@@ -166,8 +229,8 @@ export const balloonPopGame = {
             const isGolden = ballColors[idx] === 0xffbe0b;
             const ballMat = new THREE.MeshStandardMaterial({
                 color: ballColors[idx],
-                roughness: 0.22,
-                metalness: 0.1
+                roughness: 0.14,
+                metalness: 0.12
             });
 
             const ball = new THREE.Mesh(ballGeo, ballMat);
@@ -362,6 +425,11 @@ export const balloonPopGame = {
                 scene.remove(group);
                 deckGeo.dispose();
                 ballGeo.dispose();
+                collarGeo.dispose();
+                wellGeo.dispose();
+                wellBottomGeo.dispose();
+                tableShadow.geometry.dispose();
+                plinth.geometry.dispose();
             }
         };
     }
