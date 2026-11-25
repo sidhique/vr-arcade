@@ -152,8 +152,8 @@ export function buildPlaygroundLandscape(scene) {
     const sunLight = new THREE.DirectionalLight(0xfff1cf, 1.65);
     sunLight.position.set(-15, 22, 8);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 1;
     sunLight.shadow.camera.far = 65;
     sunLight.shadow.camera.left = -15;

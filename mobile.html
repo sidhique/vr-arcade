@@ -378,6 +378,7 @@
 
     // 6. Main Render Loop
     let lastTime = performance.now();
+    let lastMirrorRender = 0;
     let frameCount = 0;
 
     function animate(now) {
@@ -401,10 +402,12 @@
 
       stereoEffect.render(scene, camera);
 
-      if (frameCount++ % 2 === 0) {
+      if (hostConn?.open && now - lastMirrorRender >= 1000 / 15) {
         mirrorRenderer.render(scene, camera);
+        lastMirrorRender = now;
       }
 
+      frameCount++;
       if (hostConn && hostConn.open && frameCount % 30 === 0) {
         hostConn.send({
           type: 'TELEMETRY',
