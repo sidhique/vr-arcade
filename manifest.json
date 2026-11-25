@@ -1,0 +1,9 @@
+{
+  "name": "VR Arcade",
+  "short_name": "VR Arcade",
+  "start_url": "/mobile.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

@@ -3,47 +3,49 @@ import { playSound, buildPlaygroundLandscape, createVisorHUD } from './shared.js
 
 export const balloonPopGame = {
     name: 'Ball Pop Booth (Playground)',
-    cameraSetup: { position: [0, 2.65, 0], defaultPitch: -0.42 },
+    cameraSetup: { position: [0, 2.65, 0], defaultPitch: -0.68 },
     init(scene, camera) {
         const env = buildPlaygroundLandscape(scene);
         const group = new THREE.Group();
         scene.add(group);
 
-        // Sleek Curved Visor HUD mounted at the top of camera view (matching inspiration)
+        // Sleek Curved Visor HUD mounted at the top of scene view
         const scoreboard = createVisorHUD({
-            camera,
+            scene,
             title: 'BALL POP'
         });
 
         const tableGroup = new THREE.Group();
-        tableGroup.position.set(0, 0, -4.6);
+        tableGroup.position.set(0, 0, -3.1);
         group.add(tableGroup);
 
-        const BOX_W = 3.45;
-        const BOX_D = 3.3;
+        const BOX_W = 3.65;
+        const BOX_D = 3.5;
         const BOX_H = 0.52;
         const TOP_THICKNESS = 0.22;
-        const HOLE_RADIUS = 0.44;
+        const HOLE_RADIUS = 0.46;
 
-        const cols = [-1.02, 0.0, 1.02];
-        const rows = [0.98, 0.0, -0.98];
+        const cols = [-1.08, 0.0, 1.08];
+        const rows = [1.04, 0.0, -1.04];
 
         // 1. Soft Ground Contact Shadow beneath table
         const shadowMat = new THREE.MeshBasicMaterial({
             color: 0x180b06,
             transparent: true,
-            opacity: 0.52,
+            opacity: 0.45,
             depthWrite: false
         });
-        const tableShadow = new THREE.Mesh(new THREE.PlaneGeometry(4.3, 4.1), shadowMat);
+        const tableShadow = new THREE.Mesh(new THREE.PlaneGeometry(4.45, 4.25), shadowMat);
         tableShadow.rotation.x = -Math.PI / 2;
         tableShadow.position.y = 0.015;
         tableGroup.add(tableShadow);
 
         // 2. Beveled Console Plinth Base
         const plinthMat = new THREE.MeshStandardMaterial({ color: 0x9e442c, roughness: 0.75 });
-        const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.42, 3.2), plinthMat);
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.42, 3.4), plinthMat);
         plinth.position.y = 0.21;
+        plinth.castShadow = true;
+        plinth.receiveShadow = true;
         tableGroup.add(plinth);
 
         // 3. Molded Salmon Playfield Deck with 9 Holes
@@ -81,6 +83,8 @@ export const balloonPopGame = {
             new THREE.MeshStandardMaterial({ color: 0xde5753, roughness: 0.45, metalness: 0.08 })
         );
         coralTop.position.y = BOX_H;
+        coralTop.castShadow = true;
+        coralTop.receiveShadow = true;
         tableGroup.add(coralTop);
 
         // 4. Raised Perimeter Bezel Frame (Framing the molded tray)
@@ -98,6 +102,10 @@ export const balloonPopGame = {
         const rightRail = new THREE.Mesh(new THREE.BoxGeometry(railThickness, railH, deckD - railThickness * 2), frameRimMat);
         rightRail.position.set(deckW / 2 - railThickness / 2, BOX_H + TOP_THICKNESS + railH / 2, 0);
 
+        [frontRail, backRail, leftRail, rightRail].forEach((r) => {
+            r.castShadow = true;
+            r.receiveShadow = true;
+        });
         tableGroup.add(frontRail, backRail, leftRail, rightRail);
 
         // 5. Tactile Dished Funnel Collars & Dark Cavity Wells for each hole
@@ -105,7 +113,6 @@ export const balloonPopGame = {
         const hiddenY = BOX_H - 0.35;
         const upY = surfaceY + 0.12;
 
-        // Smooth concave lathe collar curve dipping into the hole
         const collarPoints = [];
         const COLLAR_TOP_R = HOLE_RADIUS + 0.075;
         const COLLAR_BOT_R = HOLE_RADIUS - 0.035;
@@ -123,22 +130,24 @@ export const balloonPopGame = {
             metalness: 0.05
         });
 
-        // Dark cavity cylinder liner giving realistic hollow depth inside each hole
-        const wellGeo = new THREE.CylinderGeometry(COLLAR_BOT_R, COLLAR_BOT_R, 0.72, 24, 1, true);
+        // Top edge sits at (surfaceY - 0.10), tucked cleanly underneath the collar with zero black rim
+        const wellGeo = new THREE.CylinderGeometry(COLLAR_BOT_R + 0.005, COLLAR_BOT_R + 0.005, 0.88, 24, 1, true);
         const wellMat = new THREE.MeshStandardMaterial({
             color: 0x110705,
             roughness: 0.95,
             side: THREE.BackSide
         });
-        const wellBottomGeo = new THREE.CircleGeometry(COLLAR_BOT_R, 24);
+        const wellBottomGeo = new THREE.CircleGeometry(COLLAR_BOT_R + 0.01, 24);
         const wellBottomMat = new THREE.MeshBasicMaterial({ color: 0x090403 });
 
         holeLocalPositions.forEach(([hx, hy, hz]) => {
             const collarMesh = new THREE.Mesh(collarGeo, collarMat);
             collarMesh.position.set(hx, surfaceY, hz);
+            collarMesh.receiveShadow = true;
 
             const wellMesh = new THREE.Mesh(wellGeo, wellMat);
-            wellMesh.position.set(hx, surfaceY - 0.36, hz);
+            wellMesh.position.set(hx, surfaceY - 0.54, hz);
+            wellMesh.receiveShadow = true;
 
             const bottomMesh = new THREE.Mesh(wellBottomGeo, wellBottomMat);
             bottomMesh.rotation.x = -Math.PI / 2;
@@ -191,7 +200,7 @@ export const balloonPopGame = {
         centerDot.renderOrder = 9999;
         cursor.add(centerDot);
 
-        cursor.position.set(0, 0, -3.5);
+        cursor.position.set(0, 0, -3.2);
         camera.add(cursor);
 
         // 3D Wooden Mallet — hidden until user hits a ball
@@ -205,18 +214,20 @@ export const balloonPopGame = {
             new THREE.MeshStandardMaterial({ color: 0xd4a373 })
         );
         handle.position.y = 0.48;
+        handle.castShadow = true;
         const head = new THREE.Mesh(
             new THREE.CylinderGeometry(0.22, 0.22, 0.5, 16),
             new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.35 })
         );
         head.rotation.z = Math.PI / 2;
         head.position.y = 0.92;
+        head.castShadow = true;
         mallet.add(handle, head);
         malletPivot.add(mallet);
 
         // Build 9 Pop-up Balls inside the 9 recessed holes
         const holes = [];
-        const BALL_RADIUS = 0.4;
+        const BALL_RADIUS = 0.42;
         const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 32, 28);
 
         const ballColors = [
@@ -236,10 +247,12 @@ export const balloonPopGame = {
             const ball = new THREE.Mesh(ballGeo, ballMat);
             ball.position.set(pos[0], hiddenY, pos[2]);
             ball.visible = false;
+            ball.castShadow = true;
+            ball.receiveShadow = true;
             tableGroup.add(ball);
 
             const hitbox = new THREE.Mesh(
-                new THREE.SphereGeometry(0.58, 12, 12),
+                new THREE.SphereGeometry(0.6, 12, 12),
                 new THREE.MeshBasicMaterial({ visible: false })
             );
             hitbox.position.set(pos[0], hiddenY, pos[2]);
@@ -263,7 +276,7 @@ export const balloonPopGame = {
         let activeIndex = -1;
         let lastIndex = -1;
         let activePhase = 'waiting'; // 'waiting' | 'active' | 'bursting'
-        let phaseTimer = 0.6; // Short initial delay before first ball emerges
+        let phaseTimer = 0.6;
         let missSoundPlayed = false;
 
         function spawnNextBall() {
@@ -367,14 +380,11 @@ export const balloonPopGame = {
                     const h = holes[activeIndex];
 
                     if (phaseTimer < RISE_DURATION) {
-                        // Smooth rise over 0.5s
                         const t = phaseTimer / RISE_DURATION;
                         h.ball.position.y = THREE.MathUtils.lerp(hiddenY, upY, t);
                     } else if (phaseTimer < RISE_DURATION + HOLD_DURATION) {
-                        // Held fully visible for 4.0s
                         h.ball.position.y = upY;
                     } else if (phaseTimer < TOTAL_LIFETIME) {
-                        // Smooth descent over final 0.5s — balloon is sinking away unpopped!
                         if (!missSoundPlayed) {
                             missSoundPlayed = true;
                             playSound('miss');
@@ -382,7 +392,6 @@ export const balloonPopGame = {
                         const t = (phaseTimer - (RISE_DURATION + HOLD_DURATION)) / FALL_DURATION;
                         h.ball.position.y = THREE.MathUtils.lerp(upY, hiddenY, t);
                     } else {
-                        // 5.0 seconds elapsed — completely hidden, queue next single ball
                         if (!missSoundPlayed) {
                             missSoundPlayed = true;
                             playSound('miss');

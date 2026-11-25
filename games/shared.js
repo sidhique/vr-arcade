@@ -145,52 +145,62 @@ export function buildPlaygroundLandscape(scene) {
     const envGroup = new THREE.Group();
     scene.add(envGroup);
 
-    // Dynamic Faceted Lighting
-    const hemiLight = new THREE.HemisphereLight(0xfff7e6, 0x5a3d28, 1.25);
+    // Dynamic Faceted Lighting with Upper-Left Diagonal Shadows
+    const hemiLight = new THREE.HemisphereLight(0xfff7e6, 0x5a3d28, 1.15);
     hemiLight.position.set(0, 25, 0);
 
-    const sunLight = new THREE.DirectionalLight(0xfff1cf, 1.6);
-    sunLight.position.set(16, 26, 12);
+    const sunLight = new THREE.DirectionalLight(0xfff1cf, 1.65);
+    sunLight.position.set(-15, 22, 8);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 1;
+    sunLight.shadow.camera.far = 65;
+    sunLight.shadow.camera.left = -15;
+    sunLight.shadow.camera.right = 15;
+    sunLight.shadow.camera.top = 15;
+    sunLight.shadow.camera.bottom = -15;
+    sunLight.shadow.bias = -0.0005;
 
     const fillLight = new THREE.DirectionalLight(0x9bd8ff, 0.45);
-    fillLight.position.set(-14, 16, -10);
+    fillLight.position.set(14, 16, -10);
 
     envGroup.add(hemiLight, sunLight, fillLight);
 
     // 1. Ground & Courts
-    // Terracotta Playground Court
     const court = new THREE.Mesh(
         new THREE.CircleGeometry(13.5, 48),
         new THREE.MeshStandardMaterial({ color: 0xdf7a28, roughness: 0.85 })
     );
     court.rotation.x = -Math.PI / 2;
+    court.receiveShadow = true;
     envGroup.add(court);
 
-    // Vibrant Outer Grass Lawn
     const outerLawn = new THREE.Mesh(
         new THREE.RingGeometry(13.2, 55, 48),
         new THREE.MeshStandardMaterial({ color: 0x489d2c, roughness: 0.9 })
     );
     outerLawn.rotation.x = -Math.PI / 2;
     outerLawn.position.y = -0.01;
+    outerLawn.receiveShadow = true;
     envGroup.add(outerLawn);
 
-    // Concrete Sidewalk Curb
     const curb = new THREE.Mesh(
         new THREE.RingGeometry(17.8, 18.5, 48),
         new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 })
     );
     curb.rotation.x = -Math.PI / 2;
     curb.position.y = 0.02;
+    curb.receiveShadow = true;
     envGroup.add(curb);
 
-    // Asphalt Perimeter Road
     const road = new THREE.Mesh(
         new THREE.RingGeometry(18.5, 25.5, 48),
         new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 })
     );
     road.rotation.x = -Math.PI / 2;
     road.position.y = 0.01;
+    road.receiveShadow = true;
     envGroup.add(road);
 
     // 2. Multi-Colored Playground Fence
@@ -210,12 +220,15 @@ export function buildPlaygroundLandscape(scene) {
         const slat = new THREE.Mesh(slatGeo, slatMat);
         slat.position.set(Math.cos(angle) * fenceRadius, 0.68, Math.sin(angle) * fenceRadius);
         slat.lookAt(0, 0.68, 0);
+        slat.castShadow = true;
+        slat.receiveShadow = true;
         envGroup.add(slat);
 
         if (i % 2 === 0) {
             const rail = new THREE.Mesh(railGeo, railMat);
             rail.position.set(Math.cos(angle) * (fenceRadius + 0.06), 0.75, Math.sin(angle) * (fenceRadius + 0.06));
             rail.lookAt(0, 0.75, 0);
+            rail.castShadow = true;
             envGroup.add(rail);
         }
     }
@@ -225,28 +238,28 @@ export function buildPlaygroundLandscape(scene) {
     sandboxGroup.position.set(0, 0, -9.2);
     envGroup.add(sandboxGroup);
 
-    // Purple Box Frame
     const sandPit = new THREE.Mesh(
         new THREE.BoxGeometry(2.7, 0.32, 2.7),
         new THREE.MeshStandardMaterial({ color: 0x9b5de5, roughness: 0.65 })
     );
     sandPit.position.y = 0.16;
+    sandPit.castShadow = true;
+    sandPit.receiveShadow = true;
 
-    // Golden Sand Fill
     const sandFill = new THREE.Mesh(
         new THREE.BoxGeometry(2.35, 0.34, 2.35),
         new THREE.MeshStandardMaterial({ color: 0xf4d58d, roughness: 0.95 })
     );
     sandFill.position.y = 0.17;
+    sandFill.receiveShadow = true;
 
-    // Cyan Parasol Pole
     const pole = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.07, 2.9, 10),
         new THREE.MeshStandardMaterial({ color: 0x00bbf9, roughness: 0.4 })
     );
     pole.position.y = 1.45;
+    pole.castShadow = true;
 
-    // Alternating Cyan & Magenta Striped Canopy (matching inspiration)
     const canopyGroup = new THREE.Group();
     canopyGroup.position.y = 2.85;
     const stripeCount = 8;
@@ -261,11 +274,11 @@ export function buildPlaygroundLandscape(scene) {
                 flatShading: true
             })
         );
+        wedge.castShadow = true;
         canopyGroup.add(wedge);
     }
     sandboxGroup.add(sandPit, sandFill, pole, canopyGroup);
 
-    // Scattered Faceted Soil Pebbles / Dirt Clods around sandbox
     const pebbleGeo = new THREE.DodecahedronGeometry(0.14, 0);
     const pebbleMat = new THREE.MeshStandardMaterial({
         color: 0x2b1509,
@@ -283,10 +296,12 @@ export function buildPlaygroundLandscape(scene) {
         pebble.scale.set(scale, scale * 0.65, scale);
         pebble.position.set(ox, 0.04, -9.2 + oz);
         pebble.rotation.set(pIdx * 0.4, pIdx * 0.7, 0);
+        pebble.castShadow = true;
+        pebble.receiveShadow = true;
         envGroup.add(pebble);
     });
 
-    // 4. Park Benches (Flanking the Sandbox)
+    // 4. Park Benches
     function createParkBench(x, z, rotY) {
         const benchGroup = new THREE.Group();
         benchGroup.position.set(x, 0, z);
@@ -295,24 +310,25 @@ export function buildPlaygroundLandscape(scene) {
         const slatMat = new THREE.MeshStandardMaterial({ color: 0xb0652e, roughness: 0.6 });
         const metalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.6 });
 
-        // Wooden Seat Slats
         for (let s = 0; s < 3; s++) {
             const slat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.14), slatMat);
             slat.position.set(0, 0.44, -0.14 + s * 0.16);
+            slat.castShadow = true;
             benchGroup.add(slat);
         }
-        // Wooden Back Slats
         for (let b = 0; b < 2; b++) {
             const bSlat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.14, 0.05), slatMat);
             bSlat.position.set(0, 0.68 + b * 0.18, -0.26);
+            bSlat.castShadow = true;
             benchGroup.add(bSlat);
         }
-        // Metal Legs / Armrests
         [-0.65, 0.65].forEach((lx) => {
             const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 0.52), metalMat);
             leg.position.set(lx, 0.22, 0);
+            leg.castShadow = true;
             const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.08), metalMat);
             arm.position.set(lx, 0.63, -0.24);
+            arm.castShadow = true;
             benchGroup.add(leg, arm);
         });
 
@@ -321,7 +337,7 @@ export function buildPlaygroundLandscape(scene) {
     createParkBench(-3.4, -8.8, 0.22);
     createParkBench(3.4, -8.8, -0.22);
 
-    // 5. Faceted Low-Poly Trees (Flat-Shaded, Light-Catching Polygon Geometry)
+    // 5. Faceted Low-Poly Trees
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: true });
     const trunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 1.8, 6);
 
@@ -336,19 +352,19 @@ export function buildPlaygroundLandscape(scene) {
 
         const trunk = new THREE.Mesh(trunkGeo, trunkMat);
         trunk.position.y = 0.9;
+        trunk.castShadow = true;
         treeGroup.add(trunk);
 
         if (i % 2 === 0) {
-            // Faceted Tiered Pine Tree (3 stacked cones)
             const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.5, 6, 1), pineMat);
             c1.position.y = 2.1;
             const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.35, 6, 1), pineMat);
             c2.position.y = 2.95;
             const c3 = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.15, 6, 1), pineMat);
             c3.position.y = 3.85;
+            [c1, c2, c3].forEach((c) => { c.castShadow = true; });
             treeGroup.add(c1, c2, c3);
         } else {
-            // Faceted Deciduous Low-Poly Tree (Multi-Cluster Dodecahedrons)
             const mat = (i % 4 === 1) ? leafMatA : leafMatB;
             const mainCrown = new THREE.Mesh(new THREE.DodecahedronGeometry(1.25, 0), mat);
             mainCrown.position.y = 2.5;
@@ -358,6 +374,7 @@ export function buildPlaygroundLandscape(scene) {
             const subCrown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85, 0), mat);
             subCrown2.position.set(-0.4, 2.7, -0.3);
 
+            [mainCrown, subCrown1, subCrown2].forEach((c) => { c.castShadow = true; });
             treeGroup.add(mainCrown, subCrown1, subCrown2);
         }
 
@@ -377,6 +394,7 @@ export function buildPlaygroundLandscape(scene) {
 
         const lPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.8, 6), lampMat);
         lPole.position.y = 1.9;
+        lPole.castShadow = true;
         const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.6), lampMat);
         lArm.position.set(0, 3.75, 0.25);
         const lHead = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.25, 6), lampMat);
@@ -400,14 +418,17 @@ export function buildPlaygroundLandscape(scene) {
 
     const chassis = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.65, 1.5), carBodyMat);
     chassis.position.y = 0.35;
+    chassis.castShadow = true;
     const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.6, 1.35), carGlassMat);
     cabin.position.set(-0.2, 0.88, 0);
+    cabin.castShadow = true;
 
     const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.22, 12);
     wheelGeo.rotateZ(Math.PI / 2);
     [[-1.0, -0.75], [1.0, -0.75], [-1.0, 0.75], [1.0, 0.75]].forEach(([wx, wz]) => {
         const wheel = new THREE.Mesh(wheelGeo, wheelMat);
         wheel.position.set(wx, 0.25, wz);
+        wheel.castShadow = true;
         carGroup.add(wheel);
     });
     carGroup.add(chassis, cabin);
@@ -593,7 +614,6 @@ export function createFloatingScoreboard({
     group.rotation.set(...rotation);
     group.scale.setScalar(scale);
 
-    // 1. Arched Arcade Marquee Backplate Shape
     const shape = new THREE.Shape();
     const w = 2.4, h = 1.25, r = 0.22;
     shape.moveTo(-w / 2 + r, -h / 2);
@@ -624,7 +644,6 @@ export function createFloatingScoreboard({
     const frameMesh = new THREE.Mesh(frameGeo, frameMat);
     group.add(frameMesh);
 
-    // Decorative Marquee Bulbs along top arch
     const bulbGeo = new THREE.SphereGeometry(0.045, 12, 10);
     const bulbMat = new THREE.MeshStandardMaterial({
         color: cfg.bulbColor,
@@ -644,7 +663,6 @@ export function createFloatingScoreboard({
         group.add(bulb);
     }
 
-    // 2. High-Resolution Dynamic Canvas Texture
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
@@ -668,7 +686,6 @@ export function createFloatingScoreboard({
     faceMesh.position.set(0, -0.01, 0.056);
     group.add(faceMesh);
 
-    // 3. Interactive Pause Hitbox
     const pauseHitbox = new THREE.Mesh(
         new THREE.PlaneGeometry(0.92, 0.65),
         new THREE.MeshBasicMaterial({ visible: false })
@@ -704,14 +721,12 @@ export function createFloatingScoreboard({
         }
         ctx.clip();
 
-        // Gradient Background
         const bgGrad = ctx.createLinearGradient(0, 0, 0, 512);
         bgGrad.addColorStop(0, cfg.bgGradient[0]);
         bgGrad.addColorStop(1, cfg.bgGradient[1]);
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, 1024, 512);
 
-        // Pattern / Grid
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
         ctx.lineWidth = 1;
         for (let x = 32; x < 1024; x += 32) {
@@ -721,16 +736,13 @@ export function createFloatingScoreboard({
             ctx.stroke();
         }
 
-        // Inner glowing border
         ctx.strokeStyle = cfg.cardBorder;
         ctx.lineWidth = 4;
         ctx.strokeRect(20, 20, 984, 472);
 
-        // --- HEADER BAR ---
         ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.fillRect(20, 20, 984, 76);
 
-        // Title
         ctx.font = 'bold 30px "Segoe UI", system-ui, sans-serif';
         ctx.fillStyle = cfg.titleColor;
         ctx.textAlign = 'left';
@@ -740,7 +752,6 @@ export function createFloatingScoreboard({
         ctx.fillText(`★  ${title}`, 44, 58);
         ctx.shadowBlur = 0;
 
-        // Room Code Badge in Center
         if (roomCode) {
             const roomBadgeX = 495, roomBadgeY = 38, roomBadgeW = 180, roomBadgeH = 40;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
@@ -758,7 +769,6 @@ export function createFloatingScoreboard({
             ctx.fillText(`🔑 ROOM ${roomCode}`, roomBadgeX, 58);
         }
 
-        // Status Pill on Right
         let statusText = '● LIVE SESSION';
         let statusColor = '#34d399';
         if (timeUp) {
@@ -773,7 +783,6 @@ export function createFloatingScoreboard({
         ctx.fillStyle = statusColor;
         ctx.fillText(statusText, 970, 58);
 
-        // --- LEFT CARD: SCORE & 15-MIN TIMER ---
         ctx.fillStyle = cfg.cardBg;
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
         ctx.lineWidth = 2;
@@ -783,7 +792,6 @@ export function createFloatingScoreboard({
         ctx.fill();
         ctx.stroke();
 
-        // Score Section
         ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
         ctx.fillStyle = '#94a3b8';
         ctx.textAlign = 'center';
@@ -796,7 +804,6 @@ export function createFloatingScoreboard({
         ctx.fillText(score.toString(), 266, 248);
         ctx.shadowBlur = 0;
 
-        // Divider
         const scoreUnderline = ctx.createLinearGradient(120, 0, 412, 0);
         scoreUnderline.addColorStop(0, 'transparent');
         scoreUnderline.addColorStop(0.5, 'rgba(255, 255, 255, 0.25)');
@@ -804,7 +811,6 @@ export function createFloatingScoreboard({
         ctx.fillStyle = scoreUnderline;
         ctx.fillRect(116, 280, 300, 2);
 
-        // Session Timer Section
         ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.lineWidth = 1.5;
@@ -840,7 +846,6 @@ export function createFloatingScoreboard({
         ctx.fillStyle = '#64748b';
         ctx.fillText(timeUp ? 'PLAY SESSION FINISHED' : (isPaused ? 'TIMER PAUSED' : 'TIME REMAINING'), 266, 430);
 
-        // --- RIGHT CARD: PAUSE / RESUME BUTTON ---
         const btnX = 526, btnY = 116, btnW = 452, btnH = 350, btnR = 24;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(btnX, btnY, btnW, btnH, btnR);
@@ -977,34 +982,43 @@ export function createFloatingScoreboard({
 }
 
 /**
- * Sleek curved stereoscopic Visor HUD mounted to the player's camera view.
- * Displays Timer, Interactive Pause/Resume, Score, and Room Code unobtrusively
- * across the upper field of view without obstructing the 3D world.
+ * Close-range, high-DPI (2048x512) static world-space HUD with crisp non-mipmapped text.
  */
 export function createVisorHUD({
-    camera,
-    title = 'BALL POP'
+    scene,
+    title = 'BALL POP',
+    position = [0, 3.05, -3.55],
+    rotation = [0.14, 0, 0]
 } = {}) {
     const group = new THREE.Group();
-    if (camera) {
-        camera.add(group);
+    group.position.set(...position);
+    group.rotation.set(...rotation);
+    if (scene) {
+        scene.add(group);
     }
 
-    // High-resolution canvas for crystal clear stereo HUD text
     const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 256;
+    canvas.width = 2048;
+    canvas.height = 512;
     const ctx = canvas.getContext('2d');
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.anisotropy = 16;
 
-    // Curved cylinder segment wrapping gently around player's upper peripheral vision
-    const VISOR_R = 2.45;
-    const ARC = 0.88; // ~50 degree panoramic arc
-    const visorGeo = new THREE.CylinderGeometry(VISOR_R, VISOR_R, 0.48, 36, 1, true, Math.PI * 1.5 - ARC / 2, ARC);
-    visorGeo.scale(-1, 1, 1); // Invert faces so texture faces inward towards camera
+    const RIBBON_W = 3.1;
+    const RIBBON_H = 0.78;
+    const visorGeo = new THREE.PlaneGeometry(RIBBON_W, RIBBON_H, 24, 1);
+    const posAttr = visorGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+        const vx = posAttr.getX(i);
+        const bendZ = Math.pow(vx / (RIBBON_W * 0.5), 2) * 0.24;
+        posAttr.setZ(i, bendZ);
+    }
+    visorGeo.computeVertexNormals();
 
     const visorMat = new THREE.MeshBasicMaterial({
         map: texture,
@@ -1014,18 +1028,15 @@ export function createVisorHUD({
         depthWrite: false
     });
     const visorMesh = new THREE.Mesh(visorGeo, visorMat);
-    visorMesh.renderOrder = 9990; // Draw in front of 3D geometry
-    visorMesh.position.set(0, 1.08, 0);
-    visorMesh.rotation.set(-0.24, 0, 0); // Tilted down slightly to face eyes directly
+    visorMesh.frustumCulled = false;
+    visorMesh.renderOrder = 9990;
     group.add(visorMesh);
 
-    // Interactive Pause Button Hitbox at the center of the visor
     const pauseHitbox = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.55, 0.35),
+        new THREE.PlaneGeometry(0.85, 0.58),
         new THREE.MeshBasicMaterial({ visible: false })
     );
-    pauseHitbox.position.set(0, 1.08, -VISOR_R + 0.08);
-    pauseHitbox.rotation.set(-0.24, 0, 0);
+    pauseHitbox.position.set(0, -0.02, 0.03);
     pauseHitbox.userData.isPauseButton = true;
     group.add(pauseHitbox);
 
@@ -1043,147 +1054,158 @@ export function createVisorHUD({
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
-    function drawVisor(score, isPaused, isHovered, roomCode = '', timeRemaining = 900, timeUp = false) {
-        ctx.clearRect(0, 0, 1024, 256);
-
-        // 1. Semi-transparent warm amber/gold curved HUD ribbon
-        const ribbonW = 880;
-        const ribbonH = 136;
-        const ribbonX = (1024 - ribbonW) / 2;
-        const ribbonY = 56;
-        const radius = 38;
-
+    function drawStopwatchIcon(cx, cy, r, color) {
         ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        if (ctx.roundRect) {
-            ctx.roundRect(ribbonX, ribbonY, ribbonW, ribbonH, radius);
-        } else {
-            ctx.rect(ribbonX, ribbonY, ribbonW, ribbonH);
-        }
-        ctx.clip();
-
-        // Amber/gold gradient background
-        const grad = ctx.createLinearGradient(0, ribbonY, 0, ribbonY + ribbonH);
-        grad.addColorStop(0, 'rgba(235, 130, 25, 0.52)');
-        grad.addColorStop(0.5, 'rgba(210, 100, 15, 0.44)');
-        grad.addColorStop(1, 'rgba(165, 65, 8, 0.50)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1024, 256);
-
-        // Subtle glow borders
-        ctx.strokeStyle = isHovered ? 'rgba(255, 230, 100, 0.85)' : 'rgba(255, 195, 60, 0.65)';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(ribbonX + 2, ribbonY + 2, ribbonW - 4, ribbonH - 4);
+        ctx.arc(cx, cy + 4, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillRect(cx - 11, cy - r - 11, 22, 8);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + 4);
+        ctx.lineTo(cx, cy - r + 13);
+        ctx.moveTo(cx, cy + 4);
+        ctx.lineTo(cx + r * 0.55, cy + 4);
+        ctx.stroke();
         ctx.restore();
+    }
 
-        // 2. Room Code Badge (Above Ribbon Center)
+    function drawTargetIcon(cx, cy, r, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function drawVisor(score, isPaused, isHovered, roomCode = '', timeRemaining = 900, timeUp = false) {
+        ctx.clearRect(0, 0, 2048, 512);
+
+        const cy = 290;
+        const wingH = 148;
+
+        // 1. Left Wing Ribbon
+        const leftGrad = ctx.createLinearGradient(120, 0, 900, 0);
+        leftGrad.addColorStop(0, 'rgba(245, 130, 15, 0.0)');
+        leftGrad.addColorStop(0.3, 'rgba(245, 130, 15, 0.78)');
+        leftGrad.addColorStop(1, 'rgba(255, 145, 20, 0.95)');
+        ctx.fillStyle = leftGrad;
+        ctx.beginPath();
+        ctx.moveTo(120, cy - wingH / 2);
+        ctx.lineTo(910, cy - wingH / 2);
+        ctx.lineTo(878, cy + wingH / 2);
+        ctx.lineTo(120, cy + wingH / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // 2. Right Wing Ribbon
+        const rightGrad = ctx.createLinearGradient(1148, 0, 1928, 0);
+        rightGrad.addColorStop(0, 'rgba(255, 145, 20, 0.95)');
+        rightGrad.addColorStop(0.7, 'rgba(245, 130, 15, 0.78)');
+        rightGrad.addColorStop(1, 'rgba(245, 130, 15, 0.0)');
+        ctx.fillStyle = rightGrad;
+        ctx.beginPath();
+        ctx.moveTo(1138, cy - wingH / 2);
+        ctx.lineTo(1928, cy - wingH / 2);
+        ctx.lineTo(1928, cy + wingH / 2);
+        ctx.lineTo(1170, cy + wingH / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // 3. Large High-Contrast Room Code Pill at Top
         if (roomCode) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            const rcW = 380, rcH = 68, rcX = 1024 - rcW / 2, rcY = 44;
+            ctx.fillStyle = '#0f172a';
             ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.5;
-            const rcW = 156, rcH = 30, rcX = 512 - rcW / 2, rcY = 18;
+            ctx.lineWidth = 5;
             ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(rcX, rcY, rcW, rcH, 14);
+            if (ctx.roundRect) ctx.roundRect(rcX, rcY, rcW, rcH, 32);
             else ctx.rect(rcX, rcY, rcW, rcH);
             ctx.fill();
             ctx.stroke();
 
-            ctx.font = 'bold 16px "Segoe UI", monospace';
-            ctx.fillStyle = '#38bdf8';
+            ctx.font = '800 38px system-ui, -apple-system, sans-serif';
+            ctx.fillStyle = '#7dd3fc';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(`🔑 ROOM ${roomCode}`, 512, rcY + rcH / 2);
+            ctx.fillText(`ROOM ${roomCode}`, 1024, rcY + rcH / 2 + 2);
         }
 
-        // 3. Left Section: 15-Minute Countdown Timer
+        // 4. Left Section: Bold Timer + Vector Stopwatch Icon
         const timerStr = formatTime(timeRemaining);
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
+        ctx.font = '900 88px system-ui, -apple-system, sans-serif';
 
-        ctx.font = 'bold 44px "Segoe UI", monospace';
         if (timeRemaining <= 60 || timeUp) {
-            ctx.fillStyle = '#f87171';
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 14;
+            ctx.fillStyle = '#fef2f2';
         } else if (timeRemaining <= 180) {
-            ctx.fillStyle = '#fde047';
-            ctx.shadowColor = '#eab308';
-            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#fef08a';
         } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = '#f59e0b';
-            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#18181b';
         }
-        ctx.fillText(timerStr, ribbonX + 44, ribbonY + ribbonH / 2);
-        ctx.shadowBlur = 0;
+        ctx.fillText(timerStr, 735, cy + 4);
+        drawStopwatchIcon(805, cy, 34, '#c22711');
 
-        // Stopwatch icon
-        ctx.font = '34px "Segoe UI", system-ui';
-        ctx.fillStyle = '#fed7aa';
-        ctx.fillText('⏱', ribbonX + 175, ribbonY + ribbonH / 2 - 2);
-
-        // 4. Center Section: Interactive Pause / Resume Pill
-        const btnW = 112;
-        const btnH = 82;
-        const btnX = 512 - btnW / 2;
-        const btnY = ribbonY + (ribbonH - btnH) / 2;
-        const btnR = 22;
-
+        // 5. Center Interactive Pause / Resume Button
+        const btnW = 200, btnH = 160, btnX = 1024 - btnW / 2, btnY = cy - btnH / 2;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(btnX, btnY, btnW, btnH, btnR);
+        if (ctx.roundRect) ctx.roundRect(btnX, btnY, btnW, btnH, 34);
         else ctx.rect(btnX, btnY, btnW, btnH);
 
         if (isHovered) {
-            ctx.fillStyle = isPaused ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.45)';
+            ctx.fillStyle = isPaused ? '#10b981' : '#f59e0b';
             ctx.fill();
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#ffffff';
-            ctx.shadowBlur = 16;
+            ctx.lineWidth = 6;
             ctx.stroke();
-            ctx.shadowBlur = 0;
         } else {
-            ctx.fillStyle = isPaused ? 'rgba(5, 150, 105, 0.35)' : 'rgba(0, 0, 0, 0.32)';
+            ctx.fillStyle = isPaused ? 'rgba(5, 150, 105, 0.9)' : 'rgba(20, 20, 20, 0.28)';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 4;
             ctx.stroke();
         }
 
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
         if (timeUp) {
-            ctx.font = 'bold 36px "Segoe UI", system-ui';
-            ctx.fillStyle = '#f87171';
-            ctx.fillText('⌛', 512, btnY + btnH / 2);
-        } else if (isPaused) {
-            ctx.font = 'bold 36px "Segoe UI", system-ui';
-            ctx.fillStyle = '#34d399';
-            ctx.fillText('▶', 512, btnY + btnH / 2);
-        } else {
-            // Crisp classic pause bars ❚❚
+            ctx.font = '900 68px system-ui, sans-serif';
             ctx.fillStyle = '#ffffff';
-            const barW = 8, barH = 34, gap = 12;
-            ctx.fillRect(512 - gap / 2 - barW, btnY + (btnH - barH) / 2, barW, barH);
-            ctx.fillRect(512 + gap / 2, btnY + (btnH - barH) / 2, barW, barH);
+            ctx.textAlign = 'center';
+            ctx.fillText('END', 1024, cy + 4);
+        } else if (isPaused) {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(1004, cy - 38);
+            ctx.lineTo(1062, cy);
+            ctx.lineTo(1004, cy + 38);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.fillStyle = '#18181b';
+            ctx.fillRect(992, cy - 38, 20, 76);
+            ctx.fillRect(1036, cy - 38, 20, 76);
         }
 
-        // 5. Right Section: Score Target & Number
-        ctx.textAlign = 'right';
+        // 6. Right Section: Vector Target Icon + Bold Score Number
+        drawTargetIcon(1245, cy, 34, '#c22711');
+
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-
-        // Target / Bullseye icon
-        ctx.font = '34px "Segoe UI", system-ui';
-        ctx.fillStyle = '#fed7aa';
-        ctx.fillText('🎯', ribbonX + ribbonW - 145, ribbonY + ribbonH / 2 - 2);
-
-        // Score value
-        ctx.font = 'bold 48px "Segoe UI", monospace';
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#f59e0b';
-        ctx.shadowBlur = 10;
-        ctx.fillText(score.toString(), ribbonX + ribbonW - 44, ribbonY + ribbonH / 2);
-        ctx.shadowBlur = 0;
+        ctx.font = '900 94px system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = '#18181b';
+        ctx.fillText(score.toString(), 1315, cy + 4);
 
         texture.needsUpdate = true;
     }
@@ -1232,8 +1254,8 @@ export function createVisorHUD({
             return { isHoveringPause: isHovered };
         },
         dispose() {
-            if (camera) {
-                camera.remove(group);
+            if (scene) {
+                scene.remove(group);
             }
             texture.dispose();
             visorGeo.dispose();

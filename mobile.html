@@ -3,8 +3,11 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="VR Arcade" />
+  <link rel="manifest" href="/manifest.json" />
   <title>VR Player (Mobile)</title>
   <style>
     * {
@@ -96,7 +99,7 @@
       id="padStatus">None</span></div>
   <canvas id="mirrorCanvas" width="640" height="360"></canvas>
 
-  <!-- Dual-Lens VR Headset Vignette & Center Divider (Matching Google Cardboard & Inspiration) -->
+  <!-- Dual-Lens VR Headset Vignette & Center Divider -->
   <div id="vrLensOverlay" style="position: fixed; inset: 0; pointer-events: none; z-index: 5;">
     <svg viewBox="0 0 2000 1000" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
       <defs>
@@ -108,14 +111,10 @@
           <rect x="1035" y="30" width="930" height="940" rx="150" ry="150" fill="black" />
         </mask>
       </defs>
-      <!-- Black Mask Covering Everything Except Left & Right Lenses -->
       <rect width="2000" height="1000" fill="#000000" mask="url(#vrLensMask)" />
-      <!-- Vertical Center Divider Line between Left & Right Eyes -->
       <line x1="1000" y1="360" x2="1000" y2="640" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.85" />
     </svg>
-    <!-- Top-Left Exit Button -->
     <button id="vrExitBtn" title="Exit VR / Menu" style="position: absolute; top: 18px; left: 24px; background: none; border: none; color: #ffffff; font-size: 26px; line-height: 1; cursor: pointer; pointer-events: auto; padding: 8px; opacity: 0.85;">✕</button>
-    <!-- Top-Right Settings / Recenter Button -->
     <button id="vrSettingsBtn" title="Recenter View" style="position: absolute; top: 18px; right: 24px; background: none; border: none; color: #ffffff; font-size: 26px; line-height: 1; cursor: pointer; pointer-events: auto; padding: 8px; opacity: 0.85;">⚙</button>
   </div>
 
@@ -123,6 +122,7 @@
     import * as THREE from 'three';
     import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
     import { GAMES, unlockAudio } from './games/index.js';
+    import { playSound } from './games/shared.js';
 
     const statusEl = document.getElementById('statusText');
     const lookModeEl = document.getElementById('lookMode');
@@ -131,22 +131,28 @@
     document.getElementById('roomCode').textContent = code;
     document.getElementById('hudRoom').textContent = code;
 
-    // 1. Setup Three.js Scene + Stereoscopic Renderer
+    // 1. Setup Three.js Scene + Stereoscopic Renderer with Shadows & 3D Parallax
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 120);
+    const camera = new THREE.PerspectiveCamera(82, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.focus = 3.2; // Converge stereo eyes at the foreground board distance (~3.2m)
     scene.add(camera);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
     const stereoEffect = new StereoEffect(renderer);
+    stereoEffect.setEyeSeparation(0.064);
     stereoEffect.setSize(window.innerWidth, window.innerHeight);
 
     const mirrorCanvas = document.getElementById('mirrorCanvas');
     const mirrorRenderer = new THREE.WebGLRenderer({ canvas: mirrorCanvas, antialias: false });
     mirrorRenderer.setSize(640, 360);
+    mirrorRenderer.shadowMap.enabled = true;
+    mirrorRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // 2. Camera Rig & Game State
     let basePitch = 0;
