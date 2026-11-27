@@ -91,6 +91,7 @@
     <div class="room-badge" id="roomCode">----</div>
     <p id="statusText" style="color:#94a3b8;">Initializing connection...</p>
     <button id="startBtn">Enter VR & Enable Sensors</button>
+    <p style="color:#fbbf24; font-size:0.85rem;">Binocular matching is a prototype demo, not treatment. Use adult supervision and stop if uncomfortable.</p>
     <p style="color:#64748b; font-size:0.85rem;">Desktop test: Drag mouse to look • Arrow keys to aim • Click or Space
       to act • R to recenter</p>
   </div>
@@ -123,6 +124,11 @@
     import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
     import { GAMES, unlockAudio } from './games/index.js';
     import { playSound } from './games/shared.js';
+
+    const reloadEvents = new EventSource('/__reload');
+    reloadEvents.addEventListener('message', (event) => {
+      if (event.data === 'reload') window.location.reload();
+    });
 
     const statusEl = document.getElementById('statusText');
     const lookModeEl = document.getElementById('lookMode');
@@ -170,14 +176,14 @@
     const sessionState = {
       paused: false,
       speedMultiplier: 1.0,
-      activeGameKey: 'whackAMole',
+      activeGameKey: 'binocularMatch',
       roomCode: code,
       timeRemaining: 15 * 60,
       sessionStarted: false,
       timeUp: false
     };
-    applyCameraSetup(GAMES.whackAMole);
-    let activeGame = GAMES.whackAMole.init(scene, camera);
+    applyCameraSetup(GAMES.binocularMatch);
+    let activeGame = GAMES.binocularMatch.init(scene, camera);
 
     function loadGame(key) {
       if (!GAMES[key]) return;
@@ -229,8 +235,10 @@
     let gyroEnabled = false;
     let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 };
     let screenOrientation = 0;
-    let latestAlpha = 0;
-    let yawOffset = 0;
+    const yawOffset = new THREE.Quaternion();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const viewDirection = new THREE.Vector3(0, 0, -1);
+    const yawCorrection = new THREE.Quaternion();
 
     let isDragging = false;
     let prevMouseX = 0;
@@ -274,9 +282,21 @@
     });
 
     function recenterView() {
-      yawOffset = latestAlpha;
-      mouseYaw = 0;
-      mousePitch = basePitch;
+      if (gyroEnabled) {
+        updateCameraOrientation();
+        viewDirection.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        viewDirection.y = 0;
+
+        if (viewDirection.lengthSq() > 1e-6) {
+          viewDirection.normalize();
+          const heading = Math.atan2(-viewDirection.x, -viewDirection.z);
+          yawCorrection.setFromAxisAngle(worldUp, -heading);
+          yawOffset.premultiply(yawCorrection);
+        }
+      } else {
+        mouseYaw = 0;
+        mousePitch = basePitch;
+      }
     }
 
     const zee = new THREE.Vector3(0, 0, 1);
@@ -286,7 +306,7 @@
 
     function updateCameraOrientation() {
       if (gyroEnabled) {
-        const alpha = THREE.MathUtils.degToRad(deviceOrientation.alpha || 0) - yawOffset;
+        const alpha = THREE.MathUtils.degToRad(deviceOrientation.alpha || 0);
         const beta = THREE.MathUtils.degToRad(deviceOrientation.beta || 0);
         const gamma = THREE.MathUtils.degToRad(deviceOrientation.gamma || 0);
         const orient = THREE.MathUtils.degToRad(screenOrientation || 0);
@@ -295,6 +315,7 @@
         camera.quaternion.setFromEuler(euler);
         camera.quaternion.multiply(q1);
         camera.quaternion.multiply(q0.setFromAxisAngle(zee, -orient));
+        camera.quaternion.premultiply(yawOffset);
       } else {
         mouseEuler.set(mousePitch, mouseYaw, 0, 'YXZ');
         camera.quaternion.setFromEuler(mouseEuler);
@@ -318,14 +339,18 @@
           gyroEnabled = true;
           lookModeEl.textContent = 'Gyroscope';
           deviceOrientation = e;
-          latestAlpha = THREE.MathUtils.degToRad(e.alpha);
         }
       });
 
-      window.addEventListener('orientationchange', () => {
-        screenOrientation = window.orientation || 0;
-      });
-      screenOrientation = window.orientation || 0;
+      const updateScreenOrientation = () => {
+        const screenAngle = window.screen.orientation?.angle;
+        screenOrientation = Number.isFinite(screenAngle)
+          ? screenAngle
+          : (typeof window.orientation === 'number' ? window.orientation : 0);
+      };
+      window.addEventListener('orientationchange', updateScreenOrientation);
+      window.screen.orientation?.addEventListener('change', updateScreenOrientation);
+      updateScreenOrientation();
 
       if ('wakeLock' in navigator) {
         try { await navigator.wakeLock.request('screen'); } catch (e) { }
@@ -403,7 +428,14 @@
       stereoEffect.render(scene, camera);
 
       if (hostConn?.open && now - lastMirrorRender >= 1000 / 15) {
-        mirrorRenderer.render(scene, camera);
+        const cameraLayers = camera.layers.mask;
+        camera.layers.enable(1);
+        camera.layers.enable(2);
+        try {
+          mirrorRenderer.render(scene, camera);
+        } finally {
+          camera.layers.mask = cameraLayers;
+        }
         lastMirrorRender = now;
       }
 
